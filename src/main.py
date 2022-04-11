@@ -3,8 +3,10 @@ import numpy as np
 import math
 import os
 import rasterio
+from osgeo import gdal
 from matplotlib import pyplot 
-from dilation import runDilationFunction
+from dilation import erosion, runDilationFunction
+from connectedComponents import connectedComponents
 
 def create_gaborfilter():
     # This function is designed to produce a set of GaborFilters
@@ -16,7 +18,7 @@ def create_gaborfilter():
     sigma = 1.0  # Larger Values produce more edges  4.0
     lambd = 4.0 # 4
     gamma = 0.5
-    psi = 1  # Offset value - lower generates cleaner results
+    psi = np.pi*0.5  # Offset value - lower generates cleaner results
     for theta in np.arange(0, np.pi, np.pi / num_filters):  # Theta is the orientation for edge detection
         kern = cv2.getGaborKernel((ksize, ksize), sigma, theta, lambd, gamma, psi, ktype=cv2.CV_64F)
         #pyplot.imshow(kern)
@@ -25,13 +27,16 @@ def create_gaborfilter():
         filters.append(kern)
     return filters
 
+#ksize = 100, sigma = 1.0, lambd = 4.0, gamma = 0.5
+#(ksize = 100, sigma = 1.0, lambd = 4.0, gamma = 0.5):
+# ksize = 20, sigma = 1.0, lambd = 1.0, gamma = 1.0
 def create_gaborfilter2(ksize = 100, sigma = 1.0, lambd = 4.0, gamma = 0.5):
     # This function is designed to produce a set of GaborFilters
     # an even distribution of theta values equally distributed amongst pi rad / 180 degree
      
     filters = []
     num_filters = 1000
-    psi = 1  # Offset value - lower generates cleaner results
+    psi = 1.0  # Offset value - lower generates cleaner results
     for theta in np.arange(0, np.pi, np.pi / num_filters):  # Theta is the orientation for edge detection
         kern = cv2.getGaborKernel((ksize, ksize), sigma, theta, lambd, gamma, psi, ktype=cv2.CV_64F)
         #pyplot.imshow(kern)
@@ -62,6 +67,7 @@ def apply_filter(img, filters):
 
 #path = r'C:\Users\peeyu\Projects\Research Paper\QgisFiles'
 path = r'C:\Users\peeyu\Projects\Research Paper\js2'
+#path = r'C:\Users\peeyu\Projects\Research Paper\Jharia3'
 #path = r'C:\Users\peeyu\Projects\Research Paper\Mesra Qgis'
 os.chdir(path)
 
@@ -81,9 +87,17 @@ os.chdir(path)
 # clippedMesra
 # croppedJharia
 # jhariaRaster2
+# croppedJhariaRaster
+# croppedJhariaNdmi
+# mndwiCropped
+# c2CroppedJharia
+# c2NdmiCropped
+# c2AweiCropped
+# cropped2Mndwi
+# c2WriCropped
 image = cv2.imread('croppedJhariaRaster.tif',cv2.IMREAD_LOAD_GDAL | cv2.IMREAD_ANYCOLOR)
 srcRas = rasterio.open('croppedJhariaRaster.tif')
-array = srcRas.read(1)
+array = image#srcRas.read(1)
 cv2.imshow('nothing applied', array)
 cv2.waitKey()
 pyplot.axis('off')
@@ -91,7 +105,10 @@ pyplot.title('original image')
 pyplot.imshow(array)
 pyplot.show()  
 
-array = cv2.GaussianBlur( image, [5,5],0 )
+# array = (array*255).astype(np.uint8)
+# connectedComponents(array)
+
+array = cv2.GaussianBlur( image, [5,5], 0 )
 pyplot.axis('off')
 pyplot.title('Gaussian Blur Applied')
 pyplot.imshow(array)
@@ -99,20 +116,30 @@ pyplot.show()
 gfilters = create_gaborfilter2()
 upated_ndwi = apply_filter(array, gfilters)
 
+# applying morph function 
+# erosion_size = 2
+# element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * erosion_size + 1, 2 * erosion_size + 1),
+#                                        (erosion_size, erosion_size))
+# moprh_upated_ndwi = cv2.morphologyEx(upated_ndwi, cv2.MORPH_CLOSE, element)
+# upated_ndwi = (upated_ndwi*255).astype(np.uint8)
+# runDilationFunction(cv2.Canny(upated_ndwi,100, 200, apertureSize = 5 ))
+
 pyplot.axis('off')
 pyplot.title('Gabor Applied')
 pyplot.imshow(upated_ndwi)
-#cv2.imshow('gabor applied', upated_ndwi)
+cv2.imshow('gabor applied', upated_ndwi)
+cv2.waitKey()
 pyplot.show()  
 
-upated_ndwi = (upated_ndwi*255).astype(np.uint8)
-dst = cv2.Canny(upated_ndwi,100, 200, apertureSize = 5 )
+
 #dst = upated_ndwi
 
-pyplot.axis('off')
-pyplot.title('Canny Applied')
-pyplot.imshow(dst)
-pyplot.show()
+#array = (array*255).astype(np.uint8)
+upated_ndwi = (upated_ndwi*255).astype(np.uint8)
+upated_ndwi = connectedComponents(upated_ndwi)
+
+
+dst = cv2.Canny(upated_ndwi,100, 200, apertureSize = 5 )
 
 cdst = cv2.cvtColor(dst, cv2.COLOR_GRAY2BGR)
 lines = cv2.HoughLinesP(dst, 1, np.pi / 180, 10, None, 1, 1)
@@ -122,7 +149,8 @@ if lines is not None:
     print(len(lines))
     for i in range(0, len(lines)):
         l = lines[i][0]
-        cv2.line(onlyLines, (l[0], l[1]), (l[2], l[3]), (0,0,255), 1, cv2.LINE_AA)
+        cv2.line(onlyLines, (l[0], l[1]), (l[2], l[3]), (255,255,255), 1, cv2.LINE_AA)
+        #cv2.line(cdst, (l[0], l[1]), (l[2], l[3]), (0,0,255), 1, cv2.LINE_AA)
 else:
     print(lines)
 cv2.imshow('Canny', dst)
