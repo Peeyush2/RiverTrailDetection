@@ -50,10 +50,19 @@ def connectedComponents(img) :
 
     result = np.zeros((labels.shape), np.uint8)
 
+    print(nlabels, len(areas))
     for i in range(0, nlabels - 1):
+        if areas[i] > 500 :
+            results2 = np.zeros((labels.shape), np.uint8)
+            results2[labels == i + 1] = 255
+            # cv2.imshow(str(i),results2)
+            # cv2.waitKey()
+            # cv2.destroyAllWindows()
+            # cv2.imwrite("label_"+str(i)+".png",results2)
+            # print( i, areas[i] )
         if areas[i] >= 10000:   #keep
-            print(areas[i])
             result[labels == i + 1] = 255
+    
 
     #cv2.imshow("Binary", binary_map)
     cv2.imshow("conected components", result)

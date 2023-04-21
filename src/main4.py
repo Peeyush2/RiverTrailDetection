@@ -1,28 +1,38 @@
-from random import randint, sample
+from random import randint, random, sample
 import cv2
 import numpy as np
+import math
 import os
-from matplotlib import pyplot 
-from connectedComponents import connectedComponents
-from skimage.transform import (hough_line)
+import rasterio
+from osgeo import gdal
+from matplotlib import pyplot
+from connecteComponentM import connectedComponentsM 
+from dilation import erosion, runDilationFunction
+from skimage.transform import (hough_line, hough_line_peaks)
 import pandas as pd
-
 
 path = r'C:\Users\peeyu\Projects\Research Paper\jharia4'
 os.chdir(path)
+# Ksize = 40, 
+# ksize = 10
 def create_gaborfilter2(ksize = 40, sigma = 1.0, lambd = 3.0, gamma = 0.5):
+    # This function is designed to produce a set of GaborFilters
+    # an even distribution of theta values equally distributed amongst pi rad / 180 degree
      
     filters = []
     num_filters = 1024
-    psi = 1.0  
-    for theta in np.arange(0, np.pi, np.pi / num_filters):  
+    psi = 1.0  # Offset value - lower generates cleaner results
+    for theta in np.arange(0, np.pi, np.pi / num_filters):  # Theta is the orientation for edge detection
         kern = cv2.getGaborKernel((ksize, ksize), sigma, theta, lambd, gamma, psi, ktype=cv2.CV_64F)
+        #pyplot.imshow(kern)
+        #pyplot.show()  
         kern /= 1.0 * kern.sum()  # Brightness normalization
         filters.append(kern)
     return filters
 
 def apply_filter(img, filters):
-    
+    # This general function is designed to apply filters to our image
+    # First create a numpy array the same size as our input image
     newimage = np.zeros_like(img)
      
     # Starting with a blank image, we loop through the images and apply our Gabor Filter
@@ -37,6 +47,8 @@ def apply_filter(img, filters):
         np.maximum(newimage, image_filter, newimage)
     return newimage
 
+
+#starting
 # croppedMndwi
 # croppedNdwi
 # croppedAwei
@@ -45,7 +57,7 @@ image = cv2.imread('croppedNdwi.tif',cv2.IMREAD_LOAD_GDAL | cv2.IMREAD_ANYCOLOR)
 
 # image2 = cv2.imread('croppedBI.tif',cv2.IMREAD_LOAD_GDAL | cv2.IMREAD_ANYCOLOR)
 
-image2 = cv2.imread('resize3.png') 
+image2 = cv2.imread('resize3.png')
 
 gfilters = create_gaborfilter2()
 upated_ndwi = apply_filter(image, gfilters)
@@ -92,7 +104,8 @@ for x in range(len(extractedBlue)):
         newVal = extractedBlue[x][y]
         if newVal[2] == 0 and newVal[1] != 0 and  newVal[0] != 0:
             if upated_ndwi[x][y] != 0 :
-                accurateBlue[x][y] = 1
+                accurateBlue[x][y] = upated_ndwi[x][y]
+
 print("upated_ndwi shap")
 print(upated_ndwi.shape)
 print( accurateBlue.shape )
@@ -127,10 +140,10 @@ extractedBlue = accurateBlue
 # upated_ndwi = upated_ndwi2
 
 # runDilationFunction(upated_ndwi)
+
 upated_ndwi = (upated_ndwi*255).astype(np.uint8)
 dst = cv2.Canny(upated_ndwi,100, 200, apertureSize = 5 )
 dst2 = cv2.Canny(upated_ndwi,100, 200, apertureSize = 5)
-
 
 tested_angles = np.linspace(-np.pi / 2, np.pi / 2, 180)
 hspace, theta, dist = hough_line(upated_ndwi, tested_angles)
@@ -155,7 +168,7 @@ if lines is not None:
 else:
     print(lines)
 
-cv2.imshow('removed straight lines', dst)
+cv2.imshow('removed straight lines', onlyLines)
 cv2.waitKey()
 cv2.destroyAllWindows()
 # scale = 1
@@ -168,18 +181,9 @@ cv2.destroyAllWindows()
 # cv2.destroyAllWindows()
 
 
-dst = connectedComponents(dst)
+dst = connectedComponentsM(dst)
 
-dst22 = cv2.Canny(dst,100, 200, apertureSize = 5 )
-
-
-# extractedBlue = (extractedBlue*255).astype(np.uint8)
-
-# extractedBlue = cv2.Canny(extractedBlue,100, 200, apertureSize = 5 )
-# cv2.imshow('reult canny', dst22)
-# cv2.imshow('original canny', dst2)
-# cv2.waitKey()
-# cv2.destroyAllWindows()
+# dst = cv2.Canny(dst,100, 200, apertureSize = 5 )
 
 count = 0
 count2 = 0
@@ -187,13 +191,6 @@ count2 = 0
 count3 = 0
 count4 = 0
 count5 = 0
-
-cv2.imshow('result', dst)
-cv2.imshow('input value', extractedBlue)
-cv2.imshow('original complete value', upated_ndwi)
-cv2.waitKey()
-cv2.destroyAllWindows()
-
 for x in range(len(half)):
     for y in range(len(half[0])):
         flag = 0
@@ -203,11 +200,11 @@ for x in range(len(half)):
             if dst[x][y] != 0 :
                 count2 += 1 #true positive
             else : 
-                count5 += 1 #false negative
+                count5 += 1 #false positive
         elif dst[x][y] > 0 :
-            count3+=1 # false positive
-        elif upated_ndwi[x][y] > 0 :
-            count4 += 1 #true NEGATIVE
+            count3+=1 #true negative
+        else :
+            count4 += 1 #false NEGATIVE
 
 totalCountOriginal = 0
 totalCountOutput = 0
@@ -222,7 +219,10 @@ for x in range(len(half)):
 
 print("count",count2, count5, count3, count4)
 print("total count original and output",totalCountOriginal, totalCountOutput )
-
+cv2.imshow('result', dst)
+cv2.imshow('input', dst2)
+cv2.waitKey()
+cv2.destroyAllWindows()
 
 
 for x in range(len(dst)):
@@ -243,13 +243,6 @@ for x in range(len(extractedNoise)):
 print("false neg", count5, count6)
 cv2.imshow('noise real', extractedNoise)
 cv2.imshow('noise fake', upated_ndwi2)
-cv2.waitKey()
-cv2.destroyAllWindows()
-
-extractedNoise = cv2.Canny(extractedNoise,100, 200, apertureSize = 5 )
-
-cv2.imshow('Gabor applied', dst)
-cv2.imshow('new image applied2', extractedNoise)
 cv2.waitKey()
 cv2.destroyAllWindows()
 # cdst = cv2.cvtColor(dst, cv2.COLOR_GRAY2BGR)
